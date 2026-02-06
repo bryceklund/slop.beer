@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Waking up ･ﾟ✧</title>
+    <noscript>
+      <meta http-equiv="refresh" content="1">
+    </noscript>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        background-color: white;
+        font-family: "Benton Sans", "Helvetica Neue", helvetica, arial, sans-serif;
+      }
+
+      main {
+        padding: 1rem;
+        font-size: 52pt;
+        pointer-events: none;
+      }
+
+      p {
+        max-width: 500px
+      }
+
+      .note {
+        font-size: small;
+        color: #9B9B9B;
+      }
+
+      .content {
+        margin: 50px;
+        position: fixed;
+      }
+
+      #loader:after {
+        overflow: hidden;
+        display: inline-block;
+        vertical-align: bottom;
+        animation: ellipsis steps(4, end) 1000ms infinite;
+        content: "\2026";
+        width: 0px;
+      }
+
+      @keyframes ellipsis {
+        to {
+          width: 1.25em
+        }
+      }
+
+      canvas#background {
+        position: fixed;
+        height: 100%;
+        width: 100%;
+        top: 0;
+        left: 0;
+        z-index: -1;
+      }
+    </style>
+  </head>
+
+  <body>
+    <main>
+      <div class="content">
+        <p class="status">
+          <span id="message">Loading</span>
+          <span id="loader"></span>
+        </p>
+      </div>
+    </main>
+    <canvas id="background" />
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bowser/1.9.4/bowser.min.js"></script>
+
+    <script>
+      const CANVAS = document.querySelector("canvas");
+      const CTX = CANVAS.getContext("2d");
+      const TRAIL_LENGTH = 8;
+      const FRAME_RATE = 60;
+      const MIN_BRUSH_SIZE = 10;
+      const MAX_BRUSH_SIZE = 200;
+
+      let worldTick;
+      let mousePositions = [];
+      let currentSize = 140;
+      let colorChangeIntervalId;
+      let drawing = true;
+
+      const randomBetween = (min, max) => Math.random() * (max - min) + min;
+
+      const randomColor = () => {
+        const colors = [
+          "#F5C6EF",
+          "#8EF5EC",
+          "#F5938F",
+          "#9DF5BB",
+          "#D685DC",
+          "#6EA85E"
+        ];
+
+        return colors[Math.floor(Math.random() * colors.length)];
+      };
+
+      let currentColor = randomColor();
+
+      const initialize = () => {
+        CANVAS.width = window.innerWidth;
+        CANVAS.height = window.innerHeight;
+
+        worldTick = requestAnimationFrame(drawFrame);
+      };
+
+      const addCurrentMousePosition = ({
+        clientX: x,
+        clientY: y,
+        movementX,
+        movementY
+      }) => {
+        const previousPosition =
+          mousePositions.length > 1
+            ? mousePositions[mousePositions.length - 1]
+            : { x: x - 1, y: y - 1 };
+
+        mousePositions.push({
+          x,
+          y,
+          movementX: movementX ? movementX : x - previousPosition.x,
+          movementY: movementY ? movementY : y - previousPosition.y,
+          color: currentColor,
+          size: currentSize
+        });
+
+        if (mousePositions.length > TRAIL_LENGTH) {
+          mousePositions.shift();
+        }
+      };
+
+      const drawFrame = () => {
+        if (drawing) {
+          mousePositions.forEach(
+            ({ x, y, movementX, movementY, color, size }, index) => {
+              CTX.beginPath();
+
+              CTX.moveTo(x - movementX, y - movementY);
+              CTX.lineTo(x, y);
+              CTX.lineCap = "round";
+
+              if (index !== mousePositions.length - 1) {
+                const ageMultiplier = Math.abs(index - TRAIL_LENGTH) / TRAIL_LENGTH;
+                CTX.lineWidth = size * ageMultiplier;
+                CTX.strokeStyle = color;
+              } else {
+                CTX.strokeStyle = color;
+                CTX.lineWidth = size;
+              }
+
+              CTX.stroke();
+              CTX.closePath();
+            }
+          );
+          worldTick = requestAnimationFrame(drawFrame);
+        }
+      };
+
+      CANVAS.addEventListener("mousemove", e => {
+        addCurrentMousePosition(e);
+        e.preventDefault();
+      });
+
+      CANVAS.addEventListener("touchmove", e => {
+        const touch = e.touches[0];
+        const transition = (start, end, progress) =>
+          start + (end - start) * progress;
+
+        currentSize = transition(MIN_BRUSH_SIZE, MAX_BRUSH_SIZE, touch.force);
+
+        if (touch.force >= 1) {
+          clearInterval(colorChangeIntervalId);
+          colorChangeIntervalId = setInterval(() => {
+            currentColor = randomColor();
+          }, 1000 / FRAME_RATE);
+        } else {
+          clearInterval(colorChangeIntervalId);
+        }
+
+        addCurrentMousePosition(touch);
+        e.preventDefault();
+      });
+
+      CANVAS.addEventListener("mousedown", (e) => {
+        if (e.button === 2 || !drawing) {
+          mousePositions = [];
+          drawing = !drawing;
+          drawFrame();
+          e.preventDefault();
+        } else {
+          clearInterval(colorChangeIntervalId);
+          colorChangeIntervalId = setInterval(() => {
+            currentColor = randomColor();
+          }, 1000 / FRAME_RATE);
+        }
+      });
+
+      CANVAS.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+      });
+
+      CANVAS.addEventListener("mouseup", () => {
+        clearInterval(colorChangeIntervalId);
+      });
+
+      CANVAS.addEventListener("mousewheel", e => {
+        currentSize = Math.min(
+          Math.max(currentSize + e.wheelDeltaY, MIN_BRUSH_SIZE),
+          MAX_BRUSH_SIZE
+        );
+        addCurrentMousePosition(e);
+        e.preventDefault();
+      });
+
+      initialize();
+    </script>
+
+  </body>
+
+</html>
